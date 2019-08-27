@@ -21,6 +21,8 @@ setuptools.setup(
         'Intended Audience :: Developers',
         "License :: OSI Approved :: MIT License",
         'Operating System :: OS Independent',
-        'Topic :: Software Development :: Libraries :: Python Modules :: Hardware'
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: System :: Hardware :: Hardware Drivers',
+        'Topic :: Home Automation'
     ],
 )
