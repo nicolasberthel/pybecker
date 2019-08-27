@@ -7,7 +7,7 @@ pybecker enables you to open, close or stop your shutter.
 Home-page: https://github.com/nicolasberthel/pybecker
 Author: Nicolas Berthel
 Author-email: contact@nicolasberthe.fr
-License: LGPL
+License: GNU GPLv3
 Download-URL: https://github.com/nicolasberthel/pybecker
 Description: pybecker - controling Becker shutters with Python
         ============================================
@@ -24,6 +24,6 @@ Classifier: Development Status :: 3 - Alpha
 Classifier: Intended Audience :: End Users/Desktop
 Classifier: Intended Audience :: Developers
 Classifier: Topic :: System :: Hardware :: Hardware Drivers
-Classifier: License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)
+Classifier: License :: OSI Approved :: MIT License
 Classifier: Programming Language :: Python :: 3.5
 Classifier: Programming Language :: Python :: 3.6
