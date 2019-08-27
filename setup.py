@@ -5,9 +5,10 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pybecker",
-    version="0.0.1",
+    version="0.0.2",
     author="Nicolas Berthel",
     author_email="contact@nicolasberthel.fr",
+    install_requires=['pyserial>=3.4'],
     description="pybecker is a library to control becker RF shutters",
     long_description=long_description,
     long_description_content_type="text/markdown",

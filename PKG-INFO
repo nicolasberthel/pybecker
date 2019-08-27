@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: pybecker
-Version: 0.0.1
+Version: 0.0.2
 Summary: pybecker is a library to control becker RF shutters.
 
 pybecker enables you to open, close or stop your shutter.
