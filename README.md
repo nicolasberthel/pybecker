@@ -1,6 +1,9 @@
 PyBecker - controlling Becker RF Shutter with Python
 ====================================================
 
+[![PyPI version](https://img.shields.io/pypi/v/pybecker.svg)](https://pypi.python.org/pypi/pybecker)
+[![Requirements Status](https://requires.io/github/nicolasberthel/pybecker/requirements.svg?branch=master)](https://requires.io/github/nicolasberthel/pybecker/requirements/?branch=master)
+
 This library is based on the work of **ole1986** (https://github.com/ole1986/centronic-py)
 
 PyBecker requires a Becker Centronic USB Stick in order to communicate with the Shutters.
