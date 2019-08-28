@@ -1,3 +1,4 @@
+import logging
 import os, time
 import serial
 
@@ -19,6 +20,8 @@ CODE_SUFFIX = "000000"
 CODE_DEVICE = "1737b0" # 24-32 (8 chars) / CentralControl number (https://forum.fhem.de/index.php/topic,53756.165.html)
 CODE_21 = "21"
 CODE_REMOTE = "01" # centronic remote control used "02" while contralControl seem to use "01"
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Becker:
@@ -52,16 +55,25 @@ class Becker:
         number_file = open(self._number_file_path, "w")
         number_file.write(str(number))
 
+    def __checksum(self, code):
+        l = len(code)
+        sum = 0
+        i = 0
+        while i < l:
+            hx = code[i] + code[i + 1]
+            sum += int(hx, 16)
+            i += 2
+        return '%s%s' % (code.upper(), self.__hex2(0x03 - sum))
+
     def __generate_code(self, channel, cmd):
         number = self.__read_number()
         code = CODE_PREFIX + ("%s" % self.__hex4(number)) + CODE_SUFFIX + CODE_DEVICE + CODE_21 + CODE_REMOTE
         code += ("%s" % self.__hex2(channel)) + "00" + ("%s" % self.__hex2(cmd))
+        code = self.__checksum(code)
         return code
 
     def __send(self, channel, cmd):
-
         codes = []
-
         with serial.Serial(self._device, 115200, timeout=1) as ser:
 
             if cmd == "UP":
@@ -83,6 +95,7 @@ class Becker:
             codes.append(self.__generate_code(channel, 0))  # append the release button code
             self.__increment_number()
             for code in codes:
+                _LOGGER.debug("Send Code %s on channel %d", STX + code.encode() + ETX, channel)
                 ser.write(STX + code.encode() + ETX)
 
                 time.sleep(0.1)
