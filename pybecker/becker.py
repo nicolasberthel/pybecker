@@ -92,26 +92,26 @@ class Becker:
 
         :param channel: the channel on which the shutter is listening
         """
-        self.__send(channel, COMMAND_UP)
+        self.__send(channel, "UP")
 
     def move_down(self, channel):
         """ Sent the command to move down for a given channel.
 
         :param channel: the channel on which the shutter is listening
         """
-        self.__send(channel, COMMAND_DOWN)
+        self.__send(channel, "DOWN")
 
     def stop(self, channel):
         """ Sent the command to stop for a given channel.
 
         :param channel: the channel on which the shutter is listening
         """
-        self.__send(channel, COMMAND_HALT)
+        self.__send(channel, "HALT")
 
     def pair(self, channel):
         """ Initiate the pairing for a given channel.
 
         :param channel: the channel on which the shutter is listening
         """
-        self.__send(channel, COMMAND_PAIR)
+        self.__send(channel, "PAIR")
 
