@@ -18,16 +18,16 @@ class TestBecker(unittest.TestCase):
         self.assertEqual(unit[0], "1737b")
 
     def test_generate_up(self):
-        unit = self.db.get_unit(1)
+        unit = ['1737b', 0, 0]
         code = generate_code(1, unit, COMMAND_UP)
         self.assertEqual(code, "0000000002010B00000000001737B02101010020B4")
 
     def test_generate_down(self):
-        unit = self.db.get_unit(1)
+        unit = ['1737b', 0, 0]
         code = generate_code(1, unit, COMMAND_DOWN)
         self.assertEqual(code, "0000000002010B00000000001737B0210101004094")
 
     def test_generate_halt(self):
-        unit = self.db.get_unit(1)
+        unit = ['1737b', 0, 0]
         code = generate_code(1, unit, COMMAND_HALT)
         self.assertEqual(code, "0000000002010B00000000001737B02101010010C4")

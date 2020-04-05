@@ -41,7 +41,7 @@ class Database:
                     c.execute("UPDATE unit SET increment = ?, configured = ? WHERE code = ?", (number, 1, '1737b',))
                     self.conn.commit()
                     os.remove(self.old_file)
-        except:
+        except (sqlite3.Error, OSError):
             _LOGGER.error('Migration failed')
             self.conn.rollback()
 

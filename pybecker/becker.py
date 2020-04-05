@@ -3,7 +3,6 @@ import os
 import time
 import socket
 import serial
-import asyncio
 
 from .database import Database
 from .becker_helper import finalize_code
