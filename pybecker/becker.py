@@ -1,130 +1,168 @@
 import logging
-import os, time
+import os
+import time
+import socket
 import serial
+import asyncio
 
-STX = b'\x02'
-ETX = b'\x03'
+from .database import Database
+from .becker_helper import finalize_code
+from .becker_helper import generate_code
+
 COMMAND_UP = 0x20
-COMMAND_UP2 = 0x24 # intermediate position "up"
+COMMAND_UP2 = 0x24  # intermediate position "up"
 COMMAND_DOWN = 0x40
-COMMAND_DOWN2 = 0x44 # intermediate position "down"
+COMMAND_DOWN2 = 0x44  # intermediate position "down"
 COMMAND_HALT = 0x10
-COMMAND_PAIR = 0x80
-COMMAND_PAIR2 = 0x81 # simulates the delay of 3 seconds
-COMMAND_PAIR3 = 0x82 # simulates the delay of 6 seconds
-COMMAND_PAIR4 = 0x83 # simulates the delay of 10 seconds (important for deletion)
-DEFAULT_DEVICE = '/dev/serial/by-id/usb-BECKER-ANTRIEBE_GmbH_CDC_RS232_v125_Centronic-if00'
+COMMAND_PAIR = 0x80  # pair button press
+COMMAND_PAIR2 = 0x81  # pair button pressed for 3 seconds (without releasing)
+COMMAND_PAIR3 = 0x82  # pair button pressed for 6 seconds (without releasing)
+COMMAND_PAIR4 = 0x83  # pair button pressed for 10 seconds (without releasing)
 
-CODE_PREFIX = "0000000002010B" # 0-23 (24 chars)
-CODE_SUFFIX = "000000"
-CODE_DEVICE = "1737b0" # 24-32 (8 chars) / CentralControl number (https://forum.fhem.de/index.php/topic,53756.165.html)
-CODE_21 = "21"
-CODE_REMOTE = "01" # centronic remote control used "02" while contralControl seem to use "01"
+DEFAULT_DEVICE_NAME = '/dev/serial/by-id/usb-BECKER-ANTRIEBE_GmbH_CDC_RS232_v125_Centronic-if00'
 
+logging.basicConfig()
 _LOGGER = logging.getLogger(__name__)
 
 
 class Becker:
-    def __init__(self, **kwargs):
-        """ Constructor for Becker API.
 
-        :param port: the device port if not set the default one will be used
-        """
-        self._device = DEFAULT_DEVICE
-        if 'port' in kwargs:
-            self._device = kwargs['port']
-        self._number_file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "centronic-stick.num")
+    def __init__(self, device_name=DEFAULT_DEVICE_NAME):
+        self.is_serial = "/" in device_name or "\\" in device_name
+        if self.is_serial and not os.path.exists(device_name):
+            raise FileExistsError(device_name + " don't exists")
+        self.device = device_name
+        self.db = Database()
+        if self.is_serial:
+            self.s = serial.Serial(self.device, 115200, timeout=1)
+            self.write_function = self.s.write
+        else:
+            self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            if ':' in device_name:
+                host, port = self.device.split(':')
+            else:
+                host = device_name
+                port = '5000'
+            self.s.connect((host, int(port)))
+            self.write_function = self.s.sendall
 
-    def __hex2(self, n):
-        return "%02X"%(n&0xFF)
+    async def write(self, codes):
+        for code in codes:
+            self.write_function(finalize_code(code))
+            time.sleep(0.1)
 
-    def __hex4(self, n):
-        return "%04X"%(n&0xFFFF)
+    async def run_codes(self, channel, unit, cmd, test):
+        if unit[2] == 0 and cmd != "TRAIN":
+            _LOGGER.error("The unit %s is not configured" % (unit[0]))
+            return
 
-    def __read_number(self):
-        exists = os.path.isfile(self._number_file_path)
-        number = "0"
-        if exists:
-            number_file = open(self._number_file_path, "r")
-            number = number_file.read()
-        return int(number)
-
-    def __increment_number(self):
-        number = self.__read_number()
-        number += 1
-        number_file = open(self._number_file_path, "w")
-        number_file.write(str(number))
-
-    def __checksum(self, code):
-        l = len(code)
-        sum = 0
-        i = 0
-        while i < l:
-            hx = code[i] + code[i + 1]
-            sum += int(hx, 16)
-            i += 2
-        return '%s%s' % (code.upper(), self.__hex2(0x03 - sum))
-
-    def __generate_code(self, channel, cmd):
-        number = self.__read_number()
-        code = CODE_PREFIX + ("%s" % self.__hex4(number)) + CODE_SUFFIX + CODE_DEVICE + CODE_21 + CODE_REMOTE
-        code += ("%s" % self.__hex2(channel)) + "00" + ("%s" % self.__hex2(cmd))
-        code = self.__checksum(code)
-        return code
-
-    def __send(self, channel, cmd):
         codes = []
-        with serial.Serial(self._device, 115200, timeout=1) as ser:
+        if cmd == "UP":
+            codes.append(generate_code(channel, unit, COMMAND_UP))
+        elif cmd == "UP2":
+            codes.append(generate_code(channel, unit, COMMAND_UP2))
+        elif cmd == "HALT":
+            codes.append(generate_code(channel, unit, COMMAND_HALT))
+        elif cmd == "DOWN":
+            codes.append(generate_code(channel, unit, COMMAND_DOWN))
+        elif cmd == "DOWN2":
+            codes.append(generate_code(channel, unit, COMMAND_DOWN2))
+        elif cmd == "TRAIN":
+            codes.append(generate_code(channel, unit, COMMAND_PAIR))
+            unit[1] += 1
+            codes.append(generate_code(channel, unit, COMMAND_PAIR2))
+            unit[1] += 1
+            codes.append(generate_code(channel, unit, COMMAND_PAIR))
+            unit[1] += 1
+            codes.append(generate_code(channel, unit, COMMAND_PAIR2))
+            # set unit as configured
+            unit[2] = 1
+        elif cmd == "REMOVE":
+            codes.append(generate_code(channel, unit, COMMAND_PAIR))
+            unit[1] += 1
+            codes.append(generate_code(channel, unit, COMMAND_PAIR2))
+            unit[1] += 1
+            codes.append(generate_code(channel, unit, COMMAND_PAIR))
+            unit[1] += 1
+            codes.append(generate_code(channel, unit, COMMAND_PAIR2))
+            unit[1] += 1
+            codes.append(generate_code(channel, unit, COMMAND_PAIR3))
+            unit[1] += 1
+            codes.append(generate_code(channel, unit, COMMAND_PAIR4))
 
-            if cmd == "UP":
-                codes.append(self.__generate_code(channel, COMMAND_UP))
-            elif cmd == "UP2":
-                codes.append(self.__generate_code(channel, COMMAND_UP2))
-            elif cmd == "HALT":
-                codes.append(self.__generate_code(channel, COMMAND_HALT))
-            elif cmd == "DOWN":
-                codes.append(self.__generate_code(channel, COMMAND_DOWN))
-            elif cmd == "DOWN2":
-                codes.append(self.__generate_code(channel, COMMAND_DOWN2))
-            elif cmd == "PAIR":
-                codes.append(self.__generate_code(channel, COMMAND_PAIR))
-                self.__increment_number()
-                codes.append(self.__generate_code(channel, COMMAND_PAIR2))
+        unit[1] += 1
 
-            self.__increment_number()
-            codes.append(self.__generate_code(channel, 0))  # append the release button code
-            self.__increment_number()
-            for code in codes:
-                _LOGGER.debug("Send Code %s on channel %d", STX + code.encode() + ETX, channel)
-                ser.write(STX + code.encode() + ETX)
+        # append the release button code
+        codes.append(generate_code(channel, unit, 0))
 
-                time.sleep(0.1)
+        unit[1] += 1
 
-    def move_up(self, channel):
+        await self.write(codes)
+        self.db.set_unit(unit, test)
+
+    async def send(self, channel, cmd, test=False):
+        b = channel.split(':')
+        if len(b) > 1:
+            ch = int(b[1])
+            un = int(b[0])
+        else:
+            ch = int(channel)
+            un = 1
+
+        if not 1 <= ch <= 7 and ch != 15:
+            _LOGGER.error("Channel must be in range of 1-7 or 15")
+            return
+
+        if not self.device:
+            _LOGGER.error("No device defined")
+            return
+
+        if un > 0:
+            unit = self.db.get_unit(un)
+            await self.run_codes(ch, unit, cmd, test)
+        else:
+            units = self.db.get_all_units()
+            for unit in units:
+                await self.run_codes(ch, unit, cmd, test)
+
+    async def move_up(self, channel):
         """ Sent the command to move up for a given channel.
 
         :param channel: the channel on which the shutter is listening
         """
-        self.__send(channel, "UP")
+        await self.send(channel, "UP")
 
-    def move_down(self, channel):
+    async def move_up_intermediate(self, channel):
+        """ Sent the command to move up in the intermediate position for a given channel.
+
+        :param channel: the channel on which the shutter is listening
+        """
+        await self.send(channel, "UP2")
+
+    async def move_down(self, channel):
         """ Sent the command to move down for a given channel.
 
         :param channel: the channel on which the shutter is listening
         """
-        self.__send(channel, "DOWN")
+        await self.send(channel, "DOWN")
 
-    def stop(self, channel):
+    async def move_down_intermediate(self, channel):
+        """ Sent the command to move down in the intermediate position for a given channel.
+
+        :param channel: the channel on which the shutter is listening
+        """
+        await self.send(channel, "DOWN2")
+
+    async def stop(self, channel):
         """ Sent the command to stop for a given channel.
 
         :param channel: the channel on which the shutter is listening
         """
-        self.__send(channel, "HALT")
+        await self.send(channel, "HALT")
 
-    def pair(self, channel):
+    async def pair(self, channel):
         """ Initiate the pairing for a given channel.
 
         :param channel: the channel on which the shutter is listening
         """
-        self.__send(channel, "PAIR")
-
+        await self.send(channel, "TRAIN")
