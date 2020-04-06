@@ -27,7 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 class Becker:
 
     def __init__(self, device_name=DEFAULT_DEVICE_NAME):
-        self.is_serial = "/" in device_name or "\\" in device_name
+        self.is_serial = "/" in device_name
         if self.is_serial and not os.path.exists(device_name):
             raise FileExistsError(device_name + " don't exists")
         self.device = device_name
