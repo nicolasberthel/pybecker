@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pybecker",
-    version="1.0.0",
+    version="1.0.1",
     author="Nicolas Berthel",
     author_email="contact@nicolasberthel.fr",
     install_requires=['pyserial>=3.4'],

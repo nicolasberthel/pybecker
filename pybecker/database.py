@@ -2,6 +2,7 @@ import logging
 import os
 import time
 import sqlite3
+from random import randrange
 
 NUMBER_FILE = "centronic-stick.num"
 
@@ -43,6 +44,16 @@ class Database:
                     os.remove(self.old_file)
         except (sqlite3.Error, OSError):
             _LOGGER.error('Migration failed')
+            self.conn.rollback()
+
+    def init_dummy(self):
+        try:
+            c = self.conn.cursor()
+            inc = randrange(10, 40, 1)
+            c.execute("UPDATE unit SET increment = ?, configured = ? WHERE code = ?", (inc, 1, '1737b',))
+            self.conn.commit()
+        except (sqlite3.Error, OSError):
+            _LOGGER.error('Dummy Unit initialization failed')
             self.conn.rollback()
 
     def create(self):
