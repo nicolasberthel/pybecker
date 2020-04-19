@@ -63,18 +63,30 @@ class Becker:
         if not units and init_dummy:
             self.db.init_dummy()
 
+        self._connect()
+
+    def _connect(self):
         if self.is_serial:
             self.s = serial.Serial(self.device, 115200, timeout=1)
             self.write_function = self.s.write
         else:
-            self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            if ':' in device_name:
-                host, port = self.device.split(':')
+            if ':' in self.device:
+                host, port = self.device.split(':', 1)
             else:
-                host = device_name
+                host = self.device
                 port = '5000'
-            self.s.connect((host, int(port)))
-            self.write_function = self.s.sendall
+            self.s = socket.create_connection((host, port))
+            self.write_function = self._reconnecting_sendall
+
+    def _reconnecting_sendall(self, *args, **kwargs):
+        """Wrapper for socker.sendall that reconnects (once) on failure"""
+
+        try:
+            return self.s.sendall(*args, **kwargs)
+        except OSError:
+            # Assume the connection failed, and connect again
+            self._connect()
+            return self.s.sendall(*args, **kwargs)
 
     async def write(self, codes):
         for code in codes:
