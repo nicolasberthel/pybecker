@@ -230,3 +230,10 @@ class Becker:
             :type channel: str
         """
         await self.send(channel, "TRAIN")
+
+    async def list_units(self):
+        """
+        Return all configured units as a list.
+        """
+
+        return self.db.get_all_units()
