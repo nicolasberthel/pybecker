@@ -7,6 +7,7 @@ import serial
 from .database import Database
 from .becker_helper import finalize_code
 from .becker_helper import generate_code
+from .becker_helper import BeckerConnectionError
 
 COMMAND_UP = 0x20
 COMMAND_UP2 = 0x21  # move up
@@ -54,7 +55,7 @@ class Becker:
         """
         self.is_serial = "/" in device_name
         if self.is_serial and not os.path.exists(device_name):
-            raise FileExistsError(device_name + " don't exists")
+            raise BeckerConnectionError(device_name + " is not existing")
         self.device = device_name
         self.db = Database()
 
@@ -63,7 +64,10 @@ class Becker:
         if not units and init_dummy:
             self.db.init_dummy()
 
-        self._connect()
+        try:
+            self._connect()
+        except serial.SerialException:
+            raise BeckerConnectionError("Error when trying to establish connection using " + device_name)
 
     def _connect(self):
         if self.is_serial:
