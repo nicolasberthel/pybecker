@@ -88,6 +88,25 @@ class Database:
 
         return result
 
+    def get_rowid_from_unit(self, code, create=True):
+        c = self.conn.cursor()
+        res = c.execute('SELECT rowid FROM unit WHERE code = ?', (code,))
+
+        result = res.fetchone()
+        rowid = result[0] if result is not None else -1
+
+        return rowid
+
+    def add_unit(self, unit):
+        c = self.conn.cursor()
+        c.execute("INSERT INTO unit VALUES (?, ?, ?, ?)", (unit[0], int(unit[1]), int(unit[2]), 0,))
+        self.conn.commit()
+
+    def remove_unit(self, code):
+        c = self.conn.cursor()
+        c.execute("DELETE FROM unit WHERE code = ?", (code,))
+        self.conn.commit()
+
     def set_unit(self, unit, test=False):
         c = self.conn.cursor()
         last_run = int(time.time())
