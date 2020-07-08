@@ -46,14 +46,5 @@ def finalize_code(code):
     return b"".join([STX, code.encode(), ETX])
 
 
-class BeckerConnectionError(Error):
-    """Exception raised in case of connection error (serial error).
-
-    Attributes:
-        expression -- input expression in which the error occurred
-        message -- explanation of the error
-    """
-
-    def __init__(self, expression, message):
-        self.expression = expression
-        self.message = message
+class BeckerConnectionError(Exception):
+    pass
