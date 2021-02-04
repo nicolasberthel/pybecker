@@ -1,13 +1,14 @@
 import logging
 import os
-import time
-import socket
+import re
 import serial
+import socket
+import time
 
-from .database import Database
 from .becker_helper import finalize_code
 from .becker_helper import generate_code
 from .becker_helper import BeckerConnectionError
+from .database import Database
 
 COMMAND_UP = 0x20
 COMMAND_UP2 = 0x21  # move up
@@ -102,6 +103,9 @@ class Becker:
             _LOGGER.error("The unit %s is not configured" % (unit[0]))
             return
 
+        # move up/down dependent on given time
+        mt = re.match(r"(DOWN|UP):(\d+)", cmd)
+
         codes = []
         if cmd == "UP":
             codes.append(generate_code(channel, unit, COMMAND_UP))
@@ -114,11 +118,7 @@ class Becker:
         elif cmd == "DOWN2":
             codes.append(generate_code(channel, unit, COMMAND_DOWN5))
         elif cmd == "TRAIN":
-            codes.append(generate_code(channel, unit, COMMAND_PAIR))
-            unit[1] += 1
             codes.append(generate_code(channel, unit, COMMAND_PAIR2))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_PAIR))
             unit[1] += 1
             codes.append(generate_code(channel, unit, COMMAND_PAIR2))
             # set unit as configured
@@ -134,24 +134,38 @@ class Becker:
             unit[1] += 1
             codes.append(generate_code(channel, unit, COMMAND_CLEARPOS4))
         elif cmd == "REMOVE":
-            codes.append(generate_code(channel, unit, COMMAND_PAIR))
-            unit[1] += 1
             codes.append(generate_code(channel, unit, COMMAND_PAIR2))
-            unit[1] += 1
-            codes.append(generate_code(channel, unit, COMMAND_PAIR))
             unit[1] += 1
             codes.append(generate_code(channel, unit, COMMAND_PAIR2))
             unit[1] += 1
             codes.append(generate_code(channel, unit, COMMAND_PAIR3))
             unit[1] += 1
             codes.append(generate_code(channel, unit, COMMAND_PAIR4))
+            unit[2] = 0
 
-        unit[1] += 1
+        if mt:
+            _LOGGER.INFO("Moving %s for %s seconds..." % (mt.group(1), mt.group(2)))
+            # move down/up for a specific time
+            if mt.group(1) == "UP":
+                code = generate_code(channel, unit, COMMAND_UP)
+            elif mt.group(1) == "DOWN":
+                code = generate_code(channel, unit, COMMAND_DOWN)
+
+            unit[1] += 1
+            await self.write([code])
+
+            time.sleep(int(mt.group(2)))
+
+            # stop moving
+            code = generate_code(channel, unit, COMMAND_HALT)
+            unit[1] += 1
+            await self.write([code])
+        else:
+            unit[1] += 1
 
         # append the release button code
-        codes.append(generate_code(channel, unit, 0))
-
-        unit[1] += 1
+        #codes.append(generate_code(channel, unit, 0))
+        #unit[1] += 1
 
         await self.write(codes)
         self.db.set_unit(unit, test)

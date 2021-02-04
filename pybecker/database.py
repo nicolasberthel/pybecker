@@ -3,6 +3,7 @@ import os
 import time
 import sqlite3
 from random import randrange
+from .becker_helper import hex4
 
 NUMBER_FILE = "centronic-stick.num"
 
@@ -74,12 +75,14 @@ class Database:
         c = self.conn.cursor()
         res = c.execute('SELECT * FROM unit')
         _LOGGER.info('%-10s%-10s%-12s%-15s' % ('code', 'increment', 'configured', 'last run'))
+        _LOGGER.info('%-10s%-18s%-12s%-15s' % ('code', 'increment (hex)', 'configured', 'last run'))
         for line in res.fetchall():
             last_run = '(unknown)'
 
             if line[3] > 0:
                 last_run = time.strftime('%Y-%m-%d %H:%M', time.localtime(line[3]))
             _LOGGER.info('%-10s%-10s%-12s%-15s' % (line[0], line[1], line[2], last_run))
+            _LOGGER.info('%-10s%-6s%-12s%-12s%-15s' % (line[0], line[1], "(0x" + hex4(line[1]) + ")", line[2], last_run))
 
     def get_unit(self, rowid):
         c = self.conn.cursor()
@@ -122,8 +125,17 @@ class Database:
         c = self.conn.cursor()
         last_run = int(time.time())
 
-        c.execute('UPDATE unit SET increment = ?, configured = ?, executed = ? WHERE code = ?',
-                  (unit[1], unit[2], last_run, unit[0],))
+        #c.execute('UPDATE unit SET increment = ?, configured = ?, executed = ? WHERE code = ?',
+        #          (unit[1], unit[2], last_run, unit[0],))
+
+        if len(unit[0]) < 5:
+            # assume the index is given (and not the exact unit)
+            c.execute('UPDATE unit SET increment = ?, configured = ?, executed = ? '
+                      'WHERE code = (SELECT code FROM unit LIMIT 1 OFFSET ?)',
+                      (unit[1], unit[2], last_run, int(unit[0]) - 1,))
+        else:
+            c.execute('UPDATE unit SET increment = ?, configured = ?, executed = ? WHERE code = ?',
+                      (unit[1], unit[2], last_run, unit[0],))
 
         if test:
             self.conn.rollback()
