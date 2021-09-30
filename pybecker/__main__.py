@@ -16,10 +16,14 @@ async def main():
 
     if args.action == "UP":
         await client.move_up(args.channel)
+    elif args.action == "UP2":
+        await client.move_up_intermediate(args.channel)
     elif args.action == "HALT":
         await client.stop(args.channel)
     elif args.action == "DOWN":
         await client.move_down(args.channel)
+    elif args.action == "DOWN2":
+        await client.move_down_intermediate(args.channel)
     elif args.action == "PAIR":
         await client.pair(args.channel)
 
