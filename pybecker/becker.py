@@ -45,7 +45,7 @@ class Becker:
         Use this class to perform operations on your Becker Shutter using a centronic USB Stick
         This class will as well maintain a call increment in an internal database
     """
-    def __init__(self, device_name=DEFAULT_DEVICE_NAME, init_dummy=False):
+    def __init__(self, device_name=DEFAULT_DEVICE_NAME, init_dummy=False, db_filename=None):
         """
             Create a new instance of the Becker controller
 
@@ -58,7 +58,7 @@ class Becker:
         if self.is_serial and not os.path.exists(device_name):
             raise BeckerConnectionError(device_name + " is not existing")
         self.device = device_name
-        self.db = Database()
+        self.db = Database(db_filename)
 
         # If no unit is defined create a dummy one
         units = self.db.get_all_units()
