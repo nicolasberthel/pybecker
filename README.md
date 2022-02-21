@@ -29,8 +29,8 @@ pip install pybecker
 
 Usage
 -----
-The goal of this library is to be used in your home automation component. 
+The goal of this library is to be used in your home automation component.
 however after installation you can test it by runing
 ```console
-pybecker -a <UP|DOWN|PAIR|HALT> -c <CHANNEL>
+python -m pybecker -a <UP|DOWN|PAIR|HALT> -c <CHANNEL>
 ```
