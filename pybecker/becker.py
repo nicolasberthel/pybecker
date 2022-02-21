@@ -1,13 +1,11 @@
 import logging
-import os
 import re
-import serial
-import socket
 import time
+from random import randrange
 
 from .becker_helper import finalize_code
 from .becker_helper import generate_code
-from .becker_helper import BeckerConnectionError
+from .becker_helper import BeckerCommunicator
 from .database import Database
 
 COMMAND_UP = 0x20
@@ -31,7 +29,7 @@ COMMAND_CLEARPOS2 = 0x91
 COMMAND_CLEARPOS3 = 0x92
 COMMAND_CLEARPOS4 = 0x93
 
-DEFAULT_DEVICE_NAME = '/dev/serial/by-id/usb-BECKER-ANTRIEBE_GmbH_CDC_RS232_v125_Centronic-if00'
+# DEFAULT_DEVICE_NAME moved to becker_helper
 
 logging.basicConfig()
 _LOGGER = logging.getLogger(__name__)
@@ -45,7 +43,7 @@ class Becker:
         Use this class to perform operations on your Becker Shutter using a centronic USB Stick
         This class will as well maintain a call increment in an internal database
     """
-    def __init__(self, device_name=DEFAULT_DEVICE_NAME, init_dummy=False, db_filename=None):
+    def __init__(self, device_name=None, init_dummy=False, db_filename=None, callback=None):
         """
             Create a new instance of the Becker controller
 
@@ -54,10 +52,7 @@ class Becker:
             :type device_name: str
             :type init_dummy: bool
         """
-        self.is_serial = "/" in device_name
-        if self.is_serial and not os.path.exists(device_name):
-            raise BeckerConnectionError(device_name + " is not existing")
-        self.device = device_name
+        self.communicator = BeckerCommunicator(device_name, callback)
         self.db = Database(db_filename)
 
         # If no unit is defined create a dummy one
@@ -65,42 +60,22 @@ class Becker:
         if not units and init_dummy:
             self.db.init_dummy()
 
-        try:
-            self._connect()
-        except serial.SerialException:
-            raise BeckerConnectionError("Error when trying to establish connection using " + device_name)
+        # Start communicator thread
+        self.communicator.start()
 
-    def _connect(self):
-        if self.is_serial:
-            self.s = serial.Serial(self.device, 115200, timeout=1)
-            self.write_function = self.s.write
-        else:
-            if ':' in self.device:
-                host, port = self.device.split(':', 1)
-            else:
-                host = self.device
-                port = '5000'
-            self.s = socket.create_connection((host, port))
-            self.write_function = self._reconnecting_sendall
-
-    def _reconnecting_sendall(self, *args, **kwargs):
-        """Wrapper for socker.sendall that reconnects (once) on failure"""
-
-        try:
-            return self.s.sendall(*args, **kwargs)
-        except OSError:
-            # Assume the connection failed, and connect again
-            self._connect()
-            return self.s.sendall(*args, **kwargs)
+    def close(self):
+        """Stop communicator thread, close device and database"""
+        self.communicator.close()
+        self.db.conn.close()
 
     async def write(self, codes):
         for code in codes:
-            self.write_function(finalize_code(code))
-            time.sleep(0.1)
+            self.communicator.send(finalize_code(code))
+            # Sleep implemented in BeckerCommunicator
 
     async def run_codes(self, channel, unit, cmd, test):
         if unit[2] == 0 and cmd != "TRAIN":
-            _LOGGER.error("The unit %s is not configured" % (unit[0]))
+            _LOGGER.error("The unit %s is not configured", (unit[0]))
             return
 
         # move up/down dependent on given time
@@ -171,21 +146,14 @@ class Becker:
         self.db.set_unit(unit, test)
 
     async def send(self, channel, cmd, test=False):
-        b = channel.split(':')
-        if len(b) > 1:
-            ch = int(b[1])
-            un = int(b[0])
-        else:
-            ch = int(channel)
-            un = 1
+
+        un, ch = self._split_channel(channel)
 
         if not 1 <= ch <= 7 and ch != 15:
             _LOGGER.error("Channel must be in range of 1-7 or 15")
             return
 
-        if not self.device:
-            _LOGGER.error("No device defined")
-            return
+        # device check implemented in BeckerCommunicator
 
         if un > 0:
             unit = self.db.get_unit(un)
@@ -255,3 +223,39 @@ class Becker:
         """
 
         return self.db.get_all_units()
+
+    @staticmethod
+    def _split_channel(channel):
+        b = channel.split(':')
+        if len(b) > 1:
+            ch = int(b[1])
+            un = int(b[0])
+        else:
+            ch = int(channel)
+            un = 1
+        return un, ch
+
+    async def init_unconfigured_unit(self, channel, name=None):
+        """Init unconfigured units in database and send init call"""
+        # check if unit is configured
+        un, ch = self._split_channel(channel)   # pylint: disable=unused-variable
+        unit = self.db.get_unit(un)
+        if unit[2] == 0:
+            _LOGGER.warning(
+                "Unit %s%s with channel %s not registered in database file %s!",
+                un,
+                " of " + name if name is not None else "",
+                channel,
+                self.db.filename,
+            )
+            # set the unit as configured
+            unit[1] = randrange(10, 40, 1)
+            unit[2] = 1
+            self.db.set_unit(unit)
+            # send init call to sync with database (5 required for my Roto cover)
+            for init_call_count in range(1,6):
+                _LOGGER.debug(
+                    "Init call to %s:%s #%d", un, 1, init_call_count)
+                await self.stop(':'.join((str(un), '1')))
+                # 0.5 to 0.9 seconds (works with my Roto cover)
+                time.sleep(randrange(5, 10, 1) / 10)
