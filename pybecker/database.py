@@ -6,6 +6,8 @@ from random import randrange
 from .becker_helper import hex4
 
 NUMBER_FILE = "centronic-stick.num"
+SQL_DB_FILE = "centronic-stick.db"
+FILE_PATH = os.path.dirname(os.path.realpath(__file__))
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -13,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 class Database:
 
     def __init__(self, filename=None):
-        self.filename = filename or os.path.join(os.path.dirname(os.path.realpath(__file__)), 'centronic-stick.db')
+        self.filename = filename or os.path.join(FILE_PATH, SQL_DB_FILE)
         self.conn = sqlite3.connect(self.filename)
         self.check()
 
@@ -34,7 +36,7 @@ class Database:
     def migrate(self):
         try:
             # migrate the previous *.num file into its sqllite database
-            self.old_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), NUMBER_FILE)
+            self.old_file = os.path.join(FILE_PATH, NUMBER_FILE)
             if os.path.isfile(self.old_file):
                 _LOGGER.info('Migrate previous *.num file...')
                 with open(self.old_file, "r") as file:
